@@ -1,0 +1,47 @@
+[
+  {
+    "rule_id": "critical-always-now",
+    "condition": { "priority": "CRITICAL" },
+    "action": "SEND_NOW",
+    "max_per": null,
+    "priority": 100,
+    "enabled": true,
+    "description": "CRITICAL events always bypass all guards and send immediately"
+  },
+  {
+    "rule_id": "security-alert-fast-lane",
+    "condition": { "event_type": "security_alert" },
+    "action": "SEND_NOW",
+    "max_per": null,
+    "priority": 90,
+    "enabled": true,
+    "description": "Security alerts always sent immediately regardless of fatigue"
+  },
+  {
+    "rule_id": "promo-cap-email",
+    "condition": { "event_type": "promotion", "channel": "email" },
+    "action": "CAP",
+    "max_per": { "count": 1, "window": "4h" },
+    "priority": 20,
+    "enabled": true,
+    "description": "Limit promotional emails to 1 per 4 hours per user"
+  },
+  {
+    "rule_id": "low-value-promo-defer",
+    "condition": { "event_type": "low_value_promo" },
+    "action": "DEFER",
+    "max_per": { "count": 1, "window": "24h" },
+    "priority": 15,
+    "enabled": true,
+    "description": "Low-value promos deferred into digest — max 1 per day"
+  },
+  {
+    "rule_id": "system-update-batch",
+    "condition": { "event_type": "system_update" },
+    "action": "DEFER",
+    "max_per": { "count": 2, "window": "1h" },
+    "priority": 10,
+    "enabled": true,
+    "description": "System updates batched — max 2 per hour, rest deferred"
+  }
+]

@@ -1,0 +1,1850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Notification Prioritization Engine — Cyepro Solution</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&family=Lora:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0c10;
+    --surface: #111318;
+    --surface2: #181c24;
+    --border: #1e2330;
+    --accent: #00e5c3;
+    --accent2: #ff6b6b;
+    --accent3: #ffd166;
+    --accent4: #6c63ff;
+    --text: #e8eaf0;
+    --muted: #5a6070;
+    --now: #00e5c3;
+    --later: #ffd166;
+    --never: #ff6b6b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Lora', Georgia, serif;
+    line-height: 1.7;
+    overflow-x: hidden;
+  }
+
+  /* HEADER */
+  header {
+    position: relative;
+    padding: 80px 40px 60px;
+    border-bottom: 1px solid var(--border);
+    overflow: hidden;
+  }
+  header::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 80% 60% at 60% -10%, rgba(0,229,195,0.08) 0%, transparent 70%),
+                radial-gradient(ellipse 40% 40% at 90% 80%, rgba(108,99,255,0.06) 0%, transparent 60%);
+  }
+  .header-tag {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .header-tag::before { content: ''; display: block; width: 30px; height: 1px; background: var(--accent); }
+  h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(36px, 5vw, 64px);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -1px;
+    max-width: 780px;
+  }
+  h1 span { color: var(--accent); }
+  .header-meta {
+    margin-top: 28px;
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .meta-pill {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--muted);
+  }
+  .meta-pill strong { color: var(--text); }
+
+  /* NAV */
+  nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(10,12,16,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 40px;
+    display: flex;
+    gap: 0;
+    overflow-x: auto;
+  }
+  nav a {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-decoration: none;
+    padding: 16px 20px;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+    transition: all 0.2s;
+  }
+  nav a:hover, nav a.active { color: var(--accent); border-color: var(--accent); }
+
+  /* PRESET BUTTONS */
+  .preset-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 6px;
+    padding: 7px 14px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .preset-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,229,195,0.05); }
+
+  /* RULE ROW */
+  .rule-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: var(--surface2);
+    border-radius: 6px;
+    margin-bottom: 8px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    flex-wrap: wrap;
+  }
+  .rule-row .rule-id { color: var(--accent); min-width: 160px; }
+  .rule-row .rule-type { color: var(--accent4); }
+  .rule-row .rule-action { padding: 2px 8px; border-radius: 3px; font-size: 10px; letter-spacing: 1px; }
+  .rule-row .ra-defer { background: rgba(255,209,102,0.1); color: var(--later); border: 1px solid rgba(255,209,102,0.2); }
+  .rule-row .ra-suppress { background: rgba(255,107,107,0.1); color: var(--never); border: 1px solid rgba(255,107,107,0.2); }
+  .rule-row .ra-send { background: rgba(0,229,195,0.1); color: var(--now); border: 1px solid rgba(0,229,195,0.2); }
+  .rule-row .ra-cap { background: rgba(108,99,255,0.1); color: var(--accent4); border: 1px solid rgba(108,99,255,0.2); }
+  .toggle-pill {
+    margin-left: auto;
+    width: 36px; height: 20px;
+    border-radius: 10px;
+    background: var(--border);
+    cursor: pointer;
+    position: relative;
+    transition: background 0.2s;
+    flex-shrink: 0;
+  }
+  .toggle-pill.on { background: var(--accent); }
+  .toggle-pill::after {
+    content: '';
+    position: absolute;
+    top: 3px; left: 3px;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    transition: left 0.2s;
+  }
+  .toggle-pill.on::after { left: 19px; }
+
+  /* MAIN */
+  main { max-width: 1100px; margin: 0 auto; padding: 0 40px 80px; }
+  section { padding: 64px 0 0; }
+  .section-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+  h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: 32px;
+    font-weight: 700;
+    line-height: 1.15;
+    margin-bottom: 24px;
+  }
+  h3 {
+    font-family: 'Syne', sans-serif;
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+  p { color: #b0b8cc; margin-bottom: 14px; }
+  p:last-child { margin-bottom: 0; }
+
+  /* CARDS */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    transition: border-color 0.2s;
+  }
+  .card:hover { border-color: #2a3040; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  @media(max-width:700px) { .grid-2,.grid-3 { grid-template-columns: 1fr; } }
+
+  /* ARCHITECTURE DIAGRAM */
+  .arch-diagram {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 36px;
+    margin-top: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .arch-diagram::before {
+    content: '';
+    position: absolute;
+    top: -60px; right: -60px;
+    width: 200px; height: 200px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0,229,195,0.04) 0%, transparent 70%);
+  }
+  .arch-flow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0;
+  }
+  .arch-node {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 18px;
+    text-align: center;
+    min-width: 120px;
+    position: relative;
+  }
+  .arch-node .node-icon {
+    font-size: 22px;
+    margin-bottom: 6px;
+  }
+  .arch-node .node-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .arch-node .node-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    margin-top: 2px;
+  }
+  .arch-arrow {
+    width: 36px;
+    height: 2px;
+    background: linear-gradient(90deg, var(--border), var(--accent));
+    position: relative;
+    flex-shrink: 0;
+  }
+  .arch-arrow::after {
+    content: '';
+    position: absolute;
+    right: -1px; top: -4px;
+    border: 5px solid transparent;
+    border-left: 7px solid var(--accent);
+    border-right: none;
+  }
+  .arch-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+  .arch-down {
+    width: 2px;
+    height: 28px;
+    background: linear-gradient(180deg, var(--border), var(--accent));
+    margin: 0 auto;
+    position: relative;
+  }
+  .arch-down::after {
+    content: '';
+    position: absolute;
+    bottom: -1px; left: -4px;
+    border: 5px solid transparent;
+    border-top: 7px solid var(--accent);
+    border-bottom: none;
+  }
+  .arch-branch {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .node-accent { border-color: rgba(0,229,195,0.4); }
+  .node-now { border-color: rgba(0,229,195,0.5); }
+  .node-later { border-color: rgba(255,209,102,0.5); }
+  .node-never { border-color: rgba(255,107,107,0.5); }
+
+  /* DECISION ENGINE DEMO */
+  .demo-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px;
+    margin-top: 24px;
+  }
+  .demo-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .live-badge {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 2px;
+    padding: 3px 8px;
+    background: rgba(0,229,195,0.1);
+    border: 1px solid rgba(0,229,195,0.3);
+    color: var(--accent);
+    border-radius: 4px;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
+  @media(max-width:600px) { .form-grid { grid-template-columns: 1fr; } }
+  .form-group label {
+    display: block;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .form-group input, .form-group select, .form-group textarea {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .form-group input:focus, .form-group select:focus { border-color: var(--accent); }
+  .form-group select option { background: #111; }
+  .btn-run {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 6px;
+    padding: 12px 28px;
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    transition: all 0.2s;
+  }
+  .btn-run:hover { background: #00f5d4; transform: translateY(-1px); }
+  .decision-result {
+    margin-top: 24px;
+    padding: 24px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    display: none;
+    animation: fadeIn 0.4s ease;
+  }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+  .decision-result.show { display: block; }
+  .result-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Syne', sans-serif;
+    font-size: 28px;
+    font-weight: 800;
+    margin-bottom: 12px;
+  }
+  .result-score {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+  .score-bar {
+    height: 6px;
+    background: var(--surface2);
+    border-radius: 3px;
+    margin: 4px 0 2px;
+    overflow: hidden;
+  }
+  .score-fill { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
+  .reason-log {
+    margin-top: 16px;
+    padding: 14px;
+    background: var(--bg);
+    border-radius: 6px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: #7a8a9a;
+    line-height: 1.8;
+    max-height: 160px;
+    overflow-y: auto;
+  }
+  .log-line { display: flex; gap: 10px; }
+  .log-line .ts { color: var(--muted); }
+  .log-line .msg.ok { color: var(--now); }
+  .log-line .msg.warn { color: var(--later); }
+  .log-line .msg.err { color: var(--never); }
+  .log-line .msg.info { color: #7a8a9a; }
+
+  /* CODE BLOCKS */
+  .code-block {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    margin: 16px 0;
+    font-family: 'DM Mono', monospace;
+    font-size: 12.5px;
+    line-height: 1.8;
+    overflow-x: auto;
+    position: relative;
+  }
+  .code-block .code-lang {
+    position: absolute;
+    top: 10px; right: 14px;
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .k { color: #c792ea; } /* keyword */
+  .s { color: #c3e88d; } /* string */
+  .c { color: #546e7a; font-style: italic; } /* comment */
+  .n { color: #82aaff; } /* name */
+  .v { color: var(--accent); } /* value */
+  .t { color: var(--accent3); } /* type */
+
+  /* DECISION MATRIX */
+  .matrix-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-top: 16px;
+  }
+  .matrix-table th {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  .matrix-table td {
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(30,35,48,0.5);
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    vertical-align: top;
+  }
+  .matrix-table tr:last-child td { border-bottom: none; }
+  .tag-now { color: var(--now); font-weight: 600; }
+  .tag-later { color: var(--later); font-weight: 600; }
+  .tag-never { color: var(--never); font-weight: 600; }
+
+  /* API ENDPOINTS */
+  .endpoint {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .endpoint-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 20px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .endpoint-header:hover { background: var(--surface2); }
+  .method {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 4px;
+    letter-spacing: 1px;
+  }
+  .method.post { background: rgba(0,229,195,0.12); color: var(--accent); border: 1px solid rgba(0,229,195,0.2); }
+  .method.get { background: rgba(108,99,255,0.12); color: var(--accent4); border: 1px solid rgba(108,99,255,0.2); }
+  .method.delete { background: rgba(255,107,107,0.12); color: var(--accent2); border: 1px solid rgba(255,107,107,0.2); }
+  .endpoint-path {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    flex: 1;
+  }
+  .endpoint-body {
+    display: none;
+    padding: 0 20px 20px;
+  }
+  .endpoint.open .endpoint-body { display: block; }
+  .endpoint-toggle { color: var(--muted); font-size: 12px; transition: transform 0.2s; }
+  .endpoint.open .endpoint-toggle { transform: rotate(180deg); }
+
+  /* METRICS */
+  .metric-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 22px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .metric-card::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 2px;
+  }
+  .metric-card.c1::after { background: var(--accent); }
+  .metric-card.c2::after { background: var(--later); }
+  .metric-card.c3::after { background: var(--accent4); }
+  .metric-card.c4::after { background: var(--accent2); }
+  .metric-value {
+    font-family: 'Syne', sans-serif;
+    font-size: 38px;
+    font-weight: 800;
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+  .metric-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* FATIGUE TIMELINE */
+  .timeline {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    height: 80px;
+    padding: 0 4px;
+    margin-top: 16px;
+  }
+  .tl-bar {
+    flex: 1;
+    border-radius: 3px 3px 0 0;
+    transition: all 0.3s;
+    cursor: pointer;
+    position: relative;
+  }
+  .tl-bar:hover::after {
+    content: attr(data-label);
+    position: absolute;
+    bottom: 110%;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    background: var(--surface2);
+    color: var(--text);
+    padding: 4px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+
+  /* SUPPRESSION RULES */
+  .rule-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .rule-item:last-child { border-bottom: none; }
+  .rule-num {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    min-width: 28px;
+    margin-top: 2px;
+  }
+
+  /* NOTIFICATION STREAM */
+  .stream-container {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    height: 240px;
+    overflow-y: auto;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    margin-top: 16px;
+  }
+  .stream-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(30,35,48,0.4);
+    animation: slideIn 0.3s ease;
+  }
+  @keyframes slideIn { from{opacity:0;transform:translateX(-10px)} to{opacity:1;transform:none} }
+  .stream-status {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    letter-spacing: 1px;
+    min-width: 52px;
+    text-align: center;
+  }
+  .s-now { background: rgba(0,229,195,0.1); color: var(--now); border: 1px solid rgba(0,229,195,0.2); }
+  .s-later { background: rgba(255,209,102,0.1); color: var(--later); border: 1px solid rgba(255,209,102,0.2); }
+  .s-never { background: rgba(255,107,107,0.1); color: var(--never); border: 1px solid rgba(255,107,107,0.2); }
+  .stream-user { color: var(--muted); min-width: 60px; }
+  .stream-msg { color: #8899aa; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stream-type { color: var(--accent4); font-size: 10px; }
+
+  .btn-secondary {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 6px;
+    padding: 8px 18px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-left: 10px;
+  }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* FOOTER */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 32px 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: gap;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+  }
+  .tool-note {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 18px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 48px;
+  }
+  .tool-note strong { color: var(--text); }
+
+  .highlight-box {
+    background: rgba(0,229,195,0.04);
+    border: 1px solid rgba(0,229,195,0.15);
+    border-radius: 8px;
+    padding: 18px 22px;
+    margin: 16px 0;
+  }
+  .highlight-box p { color: #9aaabb; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="header-tag">Cyepro Solutions · Round 1 Submission</div>
+  <h1>Notification <span>Prioritization</span><br>Engine</h1>
+  <div class="header-meta">
+    <div class="meta-pill"><strong>Problem:</strong> Smart Notification Routing</div>
+    <div class="meta-pill"><strong>Decision:</strong> Now / Later / Never</div>
+    <div class="meta-pill"><strong>Scale:</strong> 1000s req/min</div>
+    <div class="meta-pill"><strong>Pattern:</strong> AI-Augmented Rules Engine</div>
+  </div>
+</header>
+
+<!-- NAV -->
+<nav>
+  <a href="#overview" class="active">Overview</a>
+  <a href="#architecture">Architecture</a>
+  <a href="#decision">Decision Logic</a>
+  <a href="#demo">Live Demo</a>
+  <a href="#dedup">Dedup</a>
+  <a href="#fatigue">Fatigue</a>
+  <a href="#conflicts">Conflicts</a>
+  <a href="#rules-admin">Rules Admin</a>
+  <a href="#api">API</a>
+  <a href="#data">Data Model</a>
+  <a href="#fallback">Fallback</a>
+  <a href="#metrics">Metrics</a>
+</nav>
+
+<main>
+
+<!-- OVERVIEW -->
+<section id="overview">
+  <div class="section-label">01 — Problem Context</div>
+  <h2>Why This Engine Exists</h2>
+  <p>Users suffer from notification overload — irrelevant pings at 2 AM, the same promo five times, urgent alerts buried under promotional noise. The Notification Prioritization Engine acts as an intelligent gatekeeper: every incoming event passes through a layered decision pipeline before any user is disturbed.</p>
+
+  <div class="grid-3" style="margin-top:24px">
+    <div class="metric-card c1">
+      <div class="metric-value" style="color:var(--accent)">3</div>
+      <div class="metric-label">Decision Outcomes</div>
+    </div>
+    <div class="metric-card c2">
+      <div class="metric-value" style="color:var(--later)">7</div>
+      <div class="metric-label">Pipeline Stages</div>
+    </div>
+    <div class="metric-card c3">
+      <div class="metric-value" style="color:var(--accent4)">5</div>
+      <div class="metric-label">API Contracts</div>
+    </div>
+    <div class="metric-card c4">
+      <div class="metric-value" style="color:var(--accent2)">&lt;50ms</div>
+      <div class="metric-label">P95 Latency Target</div>
+    </div>
+    <div class="metric-card c1">
+      <div class="metric-value" style="color:var(--accent)">100%</div>
+      <div class="metric-label">Audit Coverage</div>
+    </div>
+    <div class="metric-card c2">
+      <div class="metric-value" style="color:var(--later)">0</div>
+      <div class="metric-label">Critical Msgs Lost</div>
+    </div>
+  </div>
+</section>
+
+<!-- ARCHITECTURE -->
+<section id="architecture">
+  <div class="section-label">02 — System Design</div>
+  <h2>High-Level Architecture</h2>
+  <p>The engine is a multi-stage pipeline: ingest → gate → classify → route → log. Each stage is independently scalable and fails gracefully. AI enrichment is a non-blocking enhancement, never a single point of failure.</p>
+
+  <div class="arch-diagram">
+    <div style="margin-bottom:24px">
+      <div class="arch-row">
+        <div class="arch-node node-accent" style="min-width:200px">
+          <div class="node-icon">📡</div>
+          <div class="node-label">Ingest</div>
+          <div class="node-title">API Gateway / Event Bus</div>
+        </div>
+      </div>
+      <div class="arch-down"></div>
+
+      <div class="arch-row">
+        <div class="arch-node">
+          <div class="node-icon">🔑</div>
+          <div class="node-label">Stage 1</div>
+          <div class="node-title">Dedup Guard</div>
+        </div>
+        <div class="arch-arrow"></div>
+        <div class="arch-node">
+          <div class="node-icon">🚦</div>
+          <div class="node-label">Stage 2</div>
+          <div class="node-title">Rules Engine</div>
+        </div>
+        <div class="arch-arrow"></div>
+        <div class="arch-node">
+          <div class="node-icon">🧠</div>
+          <div class="node-label">Stage 3</div>
+          <div class="node-title">AI Scorer</div>
+        </div>
+        <div class="arch-arrow"></div>
+        <div class="arch-node">
+          <div class="node-icon">⚖️</div>
+          <div class="node-label">Stage 4</div>
+          <div class="node-title">Priority Resolver</div>
+        </div>
+      </div>
+      <div class="arch-down"></div>
+
+      <div class="arch-row">
+        <div class="arch-branch">
+          <div class="arch-node node-now">
+            <div class="node-icon">✅</div>
+            <div class="node-label">Decision</div>
+            <div class="node-title" style="color:var(--now)">NOW</div>
+          </div>
+          <div class="arch-node node-later">
+            <div class="node-icon">⏰</div>
+            <div class="node-label">Decision</div>
+            <div class="node-title" style="color:var(--later)">LATER</div>
+          </div>
+          <div class="arch-node node-never">
+            <div class="node-icon">🚫</div>
+            <div class="node-label">Decision</div>
+            <div class="node-title" style="color:var(--never)">NEVER</div>
+          </div>
+        </div>
+      </div>
+      <div class="arch-down"></div>
+
+      <div class="arch-row">
+        <div class="arch-node node-accent" style="min-width:200px">
+          <div class="node-icon">📋</div>
+          <div class="node-label">Always</div>
+          <div class="node-title">Audit Log + Metrics</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2" style="margin-top:8px; gap:12px">
+      <div class="highlight-box">
+        <h3 style="font-size:14px; margin-bottom:6px">Supporting Services</h3>
+        <p style="font-size:13px; margin:0"><strong style="color:var(--text)">Redis</strong> — Dedup fingerprints, cooldown counters, rate windows<br>
+        <strong style="color:var(--text)">PostgreSQL</strong> — Rules config, history, audit logs<br>
+        <strong style="color:var(--text)">Kafka</strong> — Event ingestion &amp; deferred queue<br>
+        <strong style="color:var(--text)">Rule Admin UI</strong> — Human-configurable rules without redeploy</p>
+      </div>
+      <div class="highlight-box">
+        <h3 style="font-size:14px; margin-bottom:6px">Key Design Decisions</h3>
+        <p style="font-size:13px; margin:0">AI scoring runs async and non-blocking. Rules engine provides hard safety guarantees. Fallback to rule-only mode if AI is unavailable. All decisions are append-only in the audit log.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DECISION LOGIC -->
+<section id="decision">
+  <div class="section-label">03 — Classification Strategy</div>
+  <h2>Decision Logic Design</h2>
+  <p>Each event goes through a scoring pipeline. The final score (0–100) determines the outcome. Certain conditions can override the score with a hard decision (e.g., a CRITICAL event is always NOW).</p>
+
+  <div class="code-block">
+    <span class="code-lang">Pseudocode</span>
+<span class="k">function</span> <span class="n">classify</span>(event):
+  <span class="c">// Stage 1: Hard overrides (skip scoring)</span>
+  <span class="k">if</span> event.priority_hint == <span class="s">"CRITICAL"</span>:         <span class="k">return</span> NOW
+  <span class="k">if</span> isDuplicate(event):                          <span class="k">return</span> NEVER
+  <span class="k">if</span> isExpired(event):                            <span class="k">return</span> NEVER
+  <span class="k">if</span> userOptedOut(event.user_id, event.type):    <span class="k">return</span> NEVER
+
+  <span class="c">// Stage 2: Build composite score</span>
+  score = 0
+  score += <span class="n">priorityScore</span>(event.priority_hint)     <span class="c">// 0–30</span>
+  score += <span class="n">eventTypeScore</span>(event.event_type)         <span class="c">// 0–25</span>
+  score += <span class="n">channelScore</span>(event.channel)             <span class="c">// 0–10</span>
+  score += <span class="n">freshnessScore</span>(event.timestamp)          <span class="c">// 0–10</span>
+  score -= <span class="n">fatiguePenalty</span>(event.user_id)            <span class="c">// 0–30 penalty</span>
+  score += <span class="n">aiContextScore</span>(event)                   <span class="c">// -10 to +15 (async, non-blocking)</span>
+
+  <span class="c">// Stage 3: Decision boundary</span>
+  <span class="k">if</span> score >= <span class="v">60</span>:   <span class="k">return</span> <span class="t">NOW</span>
+  <span class="k">if</span> score >= <span class="v">30</span>:   <span class="k">return</span> <span class="t">LATER</span>  <span class="c">// schedule for optimal window</span>
+  <span class="k">return</span> <span class="t">NEVER</span>
+  </div>
+
+  <h3 style="margin-top:28px; margin-bottom:8px">Decision Matrix</h3>
+  <table class="matrix-table">
+    <tr>
+      <th>Scenario</th>
+      <th>Decision</th>
+      <th>Reason</th>
+    </tr>
+    <tr>
+      <td>Password reset, OTP, security alert</td>
+      <td class="tag-now">NOW</td>
+      <td>Critical + time-sensitive; delay = user locked out</td>
+    </tr>
+    <tr>
+      <td>Direct message from a contact</td>
+      <td class="tag-now">NOW</td>
+      <td>High-value interpersonal event; real-time expectation</td>
+    </tr>
+    <tr>
+      <td>Scheduled reminder approaching</td>
+      <td class="tag-now">NOW</td>
+      <td>Time-bound; within trigger window</td>
+    </tr>
+    <tr>
+      <td>Product update / feature announcement</td>
+      <td class="tag-later">LATER</td>
+      <td>Informational; batched into daily digest at optimal time</td>
+    </tr>
+    <tr>
+      <td>Promotional offer, discount</td>
+      <td class="tag-later">LATER</td>
+      <td>Deprioritized; delivered in low-fatigue window</td>
+    </tr>
+    <tr>
+      <td>3rd promo in 1 hour from same source</td>
+      <td class="tag-never">NEVER</td>
+      <td>Frequency cap exceeded; fatigue penalty maxed</td>
+    </tr>
+    <tr>
+      <td>Exact duplicate within 10 min</td>
+      <td class="tag-never">NEVER</td>
+      <td>Dedup guard matched fingerprint in Redis</td>
+    </tr>
+    <tr>
+      <td>Notification with expires_at in the past</td>
+      <td class="tag-never">NEVER</td>
+      <td>Stale event; delivery has no value</td>
+    </tr>
+    <tr>
+      <td>User's DND hours (e.g., 11 PM)</td>
+      <td class="tag-later">LATER</td>
+      <td>Deferred to next allowed window unless CRITICAL</td>
+    </tr>
+  </table>
+</section>
+
+<!-- LIVE DEMO -->
+<section id="demo">
+  <div class="section-label">04 — Interactive Demo</div>
+  <h2>Decision Engine Simulator</h2>
+  <p>Submit a notification event and watch the engine evaluate it through each pipeline stage in real time.</p>
+
+  <div class="demo-section">
+    <div class="demo-title">Engine Playground <span class="live-badge">● LIVE</span></div>
+    <!-- SCENARIO PRESETS -->
+    <div style="margin-bottom:20px">
+      <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Quick Scenarios</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="preset-btn" onclick="applyPreset('critical')">🔐 Security Alert</button>
+        <button class="preset-btn" onclick="applyPreset('dm')">💬 Direct Message</button>
+        <button class="preset-btn" onclick="applyPreset('promo_flood')">📢 Promo Flood</button>
+        <button class="preset-btn" onclick="applyPreset('expired')">⌛ Expired Event</button>
+        <button class="preset-btn" onclick="applyPreset('duplicate')">🔁 Duplicate</button>
+        <button class="preset-btn" onclick="applyPreset('conflict')">⚡ Urgent + Noisy</button>
+      </div>
+    </div>
+
+    <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr;">
+      <div class="form-group">
+        <label>User ID</label>
+        <input type="text" id="f-user" value="user_8821" placeholder="user_xxxx">
+      </div>
+      <div class="form-group">
+        <label>Event Type</label>
+        <select id="f-type">
+          <option value="security_alert">security_alert</option>
+          <option value="direct_message">direct_message</option>
+          <option value="reminder">reminder</option>
+          <option value="system_update">system_update</option>
+          <option value="promotion">promotion</option>
+          <option value="low_value_promo">low_value_promo</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Priority Hint</label>
+        <select id="f-priority">
+          <option value="CRITICAL">CRITICAL</option>
+          <option value="HIGH">HIGH</option>
+          <option value="MEDIUM" selected>MEDIUM</option>
+          <option value="LOW">LOW</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Channel</label>
+        <select id="f-channel">
+          <option value="push">push</option>
+          <option value="email">email</option>
+          <option value="sms">sms</option>
+          <option value="in-app">in-app</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Source / Service</label>
+        <input type="text" id="f-source" value="auth-service" placeholder="e.g. chat-service">
+      </div>
+      <div class="form-group">
+        <label>Dedupe Key <span style="color:var(--muted)">(optional)</span></label>
+        <input type="text" id="f-dedupe" value="" placeholder="leave blank = auto-generate">
+      </div>
+      <div class="form-group">
+        <label>Notifications (last hour)</label>
+        <select id="f-history">
+          <option value="0">0 — fresh user</option>
+          <option value="3">3 — normal</option>
+          <option value="8">8 — slightly busy</option>
+          <option value="15">15 — overloaded</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Expires At <span style="color:var(--muted)">(optional)</span></label>
+        <select id="f-expires">
+          <option value="future">Not set / future</option>
+          <option value="past">Past (expired)</option>
+          <option value="soon">Expires in 5 min</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>DND / Quiet Hours</label>
+        <select id="f-dnd">
+          <option value="no">Not in DND window</option>
+          <option value="yes">In DND (11 PM–8 AM)</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:16px">
+      <label>Message</label>
+      <input type="text" id="f-message" value="Your login code is 847291" placeholder="Notification message..." style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 14px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;outline:none">
+    </div>
+    <button class="btn-run" onclick="runDecision()">▶ Evaluate Notification</button>
+    <button class="btn-secondary" onclick="randomize()">⟳ Randomize</button>
+
+    <div class="decision-result" id="result">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:16px">
+        <div>
+          <div class="result-badge" id="res-badge"></div>
+          <div class="result-score" id="res-score"></div>
+        </div>
+        <div id="res-schedule" style="display:none;background:rgba(255,209,102,0.06);border:1px solid rgba(255,209,102,0.2);border-radius:8px;padding:14px 18px;font-family:'DM Mono',monospace;font-size:12px;text-align:right">
+          <div style="color:var(--muted);letter-spacing:1px;font-size:10px;margin-bottom:4px">SCHEDULED FOR</div>
+          <div id="res-schedule-time" style="color:var(--later);font-size:16px;font-weight:600"></div>
+          <div id="res-schedule-reason" style="color:var(--muted);font-size:10px;margin-top:4px"></div>
+        </div>
+      </div>
+      <div id="res-bars" style="margin-top:12px"></div>
+      <div class="reason-log" id="res-log"></div>
+    </div>
+  </div>
+
+  <!-- LIVE STREAM -->
+  <div class="demo-section" style="margin-top:24px">
+    <div class="demo-title">Event Stream <span class="live-badge">● SIMULATED</span>
+      <button class="btn-secondary" onclick="toggleStream()" id="stream-btn" style="margin-left:auto">⏸ Pause</button>
+    </div>
+    <div class="stream-container" id="stream"></div>
+  </div>
+</section>
+
+<!-- DEDUP -->
+<section id="dedup">
+  <div class="section-label">05 — Duplicate Prevention</div>
+  <h2>Deduplication Strategy</h2>
+  <p>Dedup operates at two levels: exact fingerprint matching and near-duplicate semantic similarity. Both layers run in Redis for sub-millisecond performance.</p>
+
+  <div class="grid-2" style="margin-top:20px">
+    <div class="card">
+      <h3>🔑 Exact Dedup</h3>
+      <p>A SHA-256 fingerprint is computed from <code style="color:var(--accent); font-family:'DM Mono',monospace">user_id + event_type + content_hash</code>. The hash is stored in Redis with a TTL (default 10 min for transactional events, 24 h for promotions). Any event whose fingerprint already exists returns NEVER immediately.</p>
+      <div class="code-block" style="margin-top:12px">
+<span class="n">fingerprint</span> = <span class="k">SHA256</span>(
+  event.user_id + <span class="s">"|"</span> +
+  event.event_type + <span class="s">"|"</span> +
+  <span class="n">normalize</span>(event.message) + <span class="s">"|"</span> +
+  event.source
+)
+<span class="n">redis</span>.SET(fingerprint, <span class="v">1</span>, EX=<span class="v">600</span>, NX=<span class="k">true</span>)
+<span class="c">// NX = only set if not exists; returns false if duplicate</span>
+      </div>
+    </div>
+    <div class="card">
+      <h3>≈ Near-Duplicate Detection</h3>
+      <p>For near-duplicates (same intent, slightly different text), a MinHash/SimHash of the message content is stored. If cosine similarity &gt; 0.85 with any recent notification of the same type for the same user, the new event is suppressed or coalesced.</p>
+      <div class="code-block" style="margin-top:12px">
+<span class="c">// SimHash token-level fingerprint</span>
+<span class="n">simhash</span> = <span class="k">computeSimHash</span>(tokenize(event.message))
+<span class="n">recent</span>  = <span class="n">redis</span>.ZRANGEBYSCORE(<span class="s">"sim:{user_id}"</span>, now-600, now)
+<span class="k">for</span> h <span class="k">in</span> recent:
+  <span class="k">if</span> <span class="n">hammingDist</span>(simhash, h) &lt; <span class="v">5</span>:  <span class="c">// near-duplicate</span>
+    <span class="k">return</span> <span class="t">NEVER</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ALERT FATIGUE -->
+<section id="fatigue">
+  <div class="section-label">06 — Alert Fatigue Strategy</div>
+  <h2>Keeping Users from Burning Out</h2>
+  <p>The fatigue subsystem maintains rolling counters per user and source, applies cooldowns, and routes low-urgency notifications into batched digests during quiet hours.</p>
+
+  <div class="grid-2" style="margin-top:20px">
+    <div class="card">
+      <h3>📊 Rolling Frequency Caps</h3>
+      <div class="rule-item"><span class="rule-num">R1</span><span>Max <strong>5 notifications / hour</strong> per user (total across sources)</span></div>
+      <div class="rule-item"><span class="rule-num">R2</span><span>Max <strong>2 per source / hour</strong> (prevents single service flooding)</span></div>
+      <div class="rule-item"><span class="rule-num">R3</span><span>Max <strong>1 promotion / 4 hours</strong> per channel</span></div>
+      <div class="rule-item"><span class="rule-num">R4</span><span>Max <strong>3 digests / day</strong> for batched low-priority content</span></div>
+      <p style="margin-top:10px; font-size:13px">All caps are stored in Redis sorted sets with sliding window counters. Rules are editable via the Admin UI without code deployment.</p>
+    </div>
+    <div class="card">
+      <h3>🌙 DND &amp; Quiet Hours</h3>
+      <p>Each user profile stores preferred quiet hours (e.g., 10 PM–8 AM). Non-critical notifications arriving during DND are automatically deferred to the next open window.</p>
+      <div class="rule-item"><span class="rule-num">DND</span><span>All events except CRITICAL → LATER (queued for next open window)</span></div>
+      <div class="rule-item"><span class="rule-num">OPT</span><span>User opt-out per event_type → NEVER (permanent suppression)</span></div>
+      <div class="rule-item"><span class="rule-num">BAT</span><span>Promotions during DND → batched into morning digest</span></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h3>📦 Batching &amp; Digest Engine</h3>
+    <p>Low-priority notifications accumulate in a per-user digest bucket. A scheduled job (every 30 min) evaluates whether the bucket should be flushed as a single digest notification, suppressed, or held longer. Digest frequency adapts to user engagement.</p>
+    <div style="display:flex;gap:16px;margin-top:14px;flex-wrap:wrap">
+      <div style="flex:1;min-width:160px;background:var(--surface2);border-radius:8px;padding:14px">
+        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:6px">BUCKET STATE</div>
+        <div id="digest-display" style="font-family:'DM Mono',monospace;font-size:13px;color:var(--accent)">4 items buffered</div>
+      </div>
+      <div style="flex:1;min-width:160px;background:var(--surface2);border-radius:8px;padding:14px">
+        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:6px">NEXT FLUSH</div>
+        <div id="flush-timer" style="font-family:'DM Mono',monospace;font-size:13px;color:var(--later)">--:--</div>
+      </div>
+      <div style="flex:1;min-width:160px;background:var(--surface2);border-radius:8px;padding:14px">
+        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:6px">FATIGUE INDEX</div>
+        <div id="fatigue-idx" style="font-family:'DM Mono',monospace;font-size:13px;color:var(--accent2)">LOW</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CONFLICTING PRIORITIES -->
+<section id="conflicts">
+  <div class="section-label">06b — Edge Cases</div>
+  <h2>Conflicting Priority Resolution</h2>
+  <p>Some notifications are both urgent <em>and</em> noisy — for example, a system alert from a service that has been triggering false alarms hourly. The engine uses a conflict resolver to handle these without silently suppressing genuinely critical events.</p>
+
+  <div class="grid-2" style="margin-top:20px">
+    <div class="card">
+      <h3>⚡ Urgent but Noisy</h3>
+      <p>When <code style="color:var(--accent);font-family:'DM Mono',monospace">priority_hint=HIGH</code> conflicts with a maxed fatigue penalty, the resolver applies a <strong style="color:var(--text)">tiered escalation</strong> strategy:</p>
+      <div class="rule-item"><span class="rule-num">C1</span><span><strong>CRITICAL</strong> always wins over fatigue. Sent NOW regardless of history.</span></div>
+      <div class="rule-item"><span class="rule-num">C2</span><span><strong>HIGH + noisy source</strong>: flagged for human review. Sent LATER (next quiet slot, max 15 min defer).</span></div>
+      <div class="rule-item"><span class="rule-num">C3</span><span><strong>MEDIUM + noisy</strong>: bundled into next digest, never silently dropped.</span></div>
+      <div class="rule-item"><span class="rule-num">C4</span><span><strong>Repeat noisy source</strong>: source itself gets a per-source cooldown applied automatically.</span></div>
+    </div>
+    <div class="card">
+      <h3>🔀 Multi-Channel Conflict</h3>
+      <p>When the same event targets multiple channels simultaneously (push + email + SMS), the engine prevents redundancy:</p>
+      <div class="rule-item"><span class="rule-num">M1</span><span>Highest-priority channel is sent NOW. Others suppressed or deferred.</span></div>
+      <div class="rule-item"><span class="rule-num">M2</span><span>If primary channel fails delivery, next channel is promoted automatically.</span></div>
+      <div class="rule-item"><span class="rule-num">M3</span><span>Fallback chain: push → in-app → email → SMS (configurable per event type).</span></div>
+      <div class="code-block" style="margin-top:12px;font-size:11px">
+<span class="c">// Channel priority resolver</span>
+<span class="k">if</span> channels.length > <span class="v">1</span>:
+  primary = <span class="n">rankByChannelPriority</span>(event, channels)
+  send(primary)
+  defer_or_suppress(remaining_channels)
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h3>🛡️ Conflict Decision Table</h3>
+    <table class="matrix-table" style="margin-top:8px">
+      <tr><th>Scenario</th><th>Priority</th><th>Fatigue</th><th>Resolution</th></tr>
+      <tr><td>Security alert from reliable source</td><td class="tag-now">CRITICAL</td><td>HIGH</td><td class="tag-now">NOW — CRITICAL always overrides</td></tr>
+      <tr><td>Alert from known noisy service</td><td class="tag-later">HIGH</td><td>HIGH</td><td class="tag-later">LATER — max 15 min defer, never lost</td></tr>
+      <tr><td>Promo during active session</td><td style="color:var(--muted)">LOW</td><td>MEDIUM</td><td class="tag-never">NEVER — low value + active fatigue</td></tr>
+      <tr><td>Reminder + DND + MEDIUM priority</td><td class="tag-later">MEDIUM</td><td>LOW</td><td class="tag-later">LATER — DND respected, queued for morning</td></tr>
+      <tr><td>Duplicate HIGH alert (same dedupe_key)</td><td class="tag-later">HIGH</td><td>ANY</td><td class="tag-never">NEVER — dedup wins before priority scoring</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- RULES ADMIN UI -->
+<section id="rules-admin">
+  <div class="section-label">06c — Human-Configurable Rules</div>
+  <h2>Rules Admin Panel</h2>
+  <p>Operators can create, edit, enable/disable rules in real time — no code deployment required. Rules are hot-reloaded by the engine from the database every 30 seconds.</p>
+
+  <div class="card" style="margin-top:20px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+      <div class="demo-title" style="margin:0">Rule Editor <span class="live-badge">● INTERACTIVE</span></div>
+      <button class="btn-run" onclick="addRule()" style="padding:8px 18px;font-size:13px">+ Add Rule</button>
+    </div>
+
+    <div id="rules-list">
+      <!-- Rendered by JS -->
+    </div>
+
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+      <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Add New Rule</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;flex-wrap:wrap">
+        <div class="form-group">
+          <label>Rule ID</label>
+          <input type="text" id="nr-id" placeholder="my-rule-id">
+        </div>
+        <div class="form-group">
+          <label>Event Type Match</label>
+          <select id="nr-type">
+            <option value="*">* (all)</option>
+            <option value="promotion">promotion</option>
+            <option value="system_update">system_update</option>
+            <option value="low_value_promo">low_value_promo</option>
+            <option value="reminder">reminder</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Action</label>
+          <select id="nr-action">
+            <option value="DEFER">DEFER</option>
+            <option value="SUPPRESS">SUPPRESS</option>
+            <option value="SEND_NOW">SEND_NOW</option>
+            <option value="CAP">CAP (frequency limit)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Max / Window</label>
+          <select id="nr-cap">
+            <option value="1/1h">1 per hour</option>
+            <option value="2/1h">2 per hour</option>
+            <option value="1/4h">1 per 4 hours</option>
+            <option value="3/24h">3 per day</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn-run" onclick="saveRule()" style="margin-top:12px;padding:9px 20px;font-size:13px">💾 Save Rule</button>
+    </div>
+  </div>
+</section>
+
+<!-- API -->
+<section id="api">
+  <div class="section-label">07 — Service Contracts</div>
+  <h2>API Endpoints</h2>
+  <p>Five REST endpoints covering the full lifecycle: evaluation, rule management, history queries, suppression overrides, and audit retrieval. Click each to expand.</p>
+
+  <div style="margin-top:24px">
+
+    <div class="endpoint open" onclick="toggleEndpoint(this)">
+      <div class="endpoint-header">
+        <span class="method post">POST</span>
+        <span class="endpoint-path">/v1/notifications/evaluate</span>
+        <span style="color:var(--muted);font-size:13px;flex:1;margin-left:8px">— Core decision endpoint</span>
+        <span class="endpoint-toggle">▼</span>
+      </div>
+      <div class="endpoint-body">
+        <p style="font-size:13px">Evaluates a single notification event and returns a Now/Later/Never decision with explanation.</p>
+        <div class="code-block">
+<span class="c">// Request</span>
+{
+  <span class="n">"user_id"</span>:      <span class="s">"user_8821"</span>,
+  <span class="n">"event_type"</span>:   <span class="s">"security_alert"</span>,
+  <span class="n">"message"</span>:      <span class="s">"New login from Mumbai"</span>,
+  <span class="n">"source"</span>:       <span class="s">"auth-service"</span>,
+  <span class="n">"priority_hint"</span>:<span class="s">"CRITICAL"</span>,
+  <span class="n">"timestamp"</span>:    <span class="s">"2025-02-25T14:00:00Z"</span>,
+  <span class="n">"channel"</span>:      <span class="s">"push"</span>,
+  <span class="n">"dedupe_key"</span>:   <span class="s">"auth_login_8821_1708"</span>,
+  <span class="n">"expires_at"</span>:   <span class="s">"2025-02-25T14:30:00Z"</span>
+}
+
+<span class="c">// Response</span>
+{
+  <span class="n">"decision"</span>:    <span class="s">"NOW"</span>,
+  <span class="n">"score"</span>:       <span class="v">88</span>,
+  <span class="n">"reason"</span>:      <span class="s">"CRITICAL override. Dedup: PASS. Fatigue: OK (2/5 this hr)."</span>,
+  <span class="n">"schedule_at"</span>: <span class="k">null</span>,
+  <span class="n">"audit_id"</span>:    <span class="s">"aud_a1b2c3d4"</span>
+}
+        </div>
+      </div>
+    </div>
+
+    <div class="endpoint" onclick="toggleEndpoint(this)">
+      <div class="endpoint-header">
+        <span class="method get">GET</span>
+        <span class="endpoint-path">/v1/notifications/history/{user_id}</span>
+        <span style="color:var(--muted);font-size:13px;flex:1;margin-left:8px">— Fatigue context lookup</span>
+        <span class="endpoint-toggle">▼</span>
+      </div>
+      <div class="endpoint-body">
+        <p style="font-size:13px">Returns notification history for a user within a time window. Used by the engine to compute fatigue penalty, and available to the admin for audit purposes.</p>
+        <div class="code-block">
+<span class="c">// Query params: ?window=1h&source=all</span>
+<span class="c">// Response</span>
+{
+  <span class="n">"user_id"</span>:   <span class="s">"user_8821"</span>,
+  <span class="n">"window"</span>:    <span class="s">"1h"</span>,
+  <span class="n">"count"</span>:     <span class="v">3</span>,
+  <span class="n">"cap"</span>:       <span class="v">5</span>,
+  <span class="n">"fatigue"</span>:   <span class="s">"LOW"</span>,
+  <span class="n">"events"</span>:    [...]
+}
+        </div>
+      </div>
+    </div>
+
+    <div class="endpoint" onclick="toggleEndpoint(this)">
+      <div class="endpoint-header">
+        <span class="method post">POST</span>
+        <span class="endpoint-path">/v1/rules</span>
+        <span style="color:var(--muted);font-size:13px;flex:1;margin-left:8px">— Create/update configurable rule</span>
+        <span class="endpoint-toggle">▼</span>
+      </div>
+      <div class="endpoint-body">
+        <p style="font-size:13px">Human-configurable rules stored in DB, hot-reloaded by the engine. No code deployment needed. Rules can target event_type, source, channel, user segment, or time-of-day.</p>
+        <div class="code-block">
+{
+  <span class="n">"rule_id"</span>:    <span class="s">"promo-cap-email"</span>,
+  <span class="n">"condition"</span>:  { <span class="n">"event_type"</span>: <span class="s">"promotion"</span>, <span class="n">"channel"</span>: <span class="s">"email"</span> },
+  <span class="n">"action"</span>:     <span class="s">"DEFER"</span>,
+  <span class="n">"max_per"</span>:    { <span class="n">"count"</span>: <span class="v">1</span>, <span class="n">"window"</span>: <span class="s">"4h"</span> },
+  <span class="n">"priority"</span>:   <span class="v">10</span>,
+  <span class="n">"enabled"</span>:    <span class="k">true</span>
+}
+        </div>
+      </div>
+    </div>
+
+    <div class="endpoint" onclick="toggleEndpoint(this)">
+      <div class="endpoint-header">
+        <span class="method post">POST</span>
+        <span class="endpoint-path">/v1/notifications/override</span>
+        <span style="color:var(--muted);font-size:13px;flex:1;margin-left:8px">— Force-send suppressed event</span>
+        <span class="endpoint-toggle">▼</span>
+      </div>
+      <div class="endpoint-body">
+        <p style="font-size:13px">Allows an authorized operator to force a NEVER or LATER decision to NOW — for emergency broadcasts or manual escalation. Requires elevated permissions and is logged with operator ID.</p>
+        <div class="code-block">
+{
+  <span class="n">"notification_id"</span>: <span class="s">"ntf_xyz123"</span>,
+  <span class="n">"override_to"</span>:     <span class="s">"NOW"</span>,
+  <span class="n">"operator_id"</span>:     <span class="s">"ops_admin_01"</span>,
+  <span class="n">"reason"</span>:          <span class="s">"Emergency system outage broadcast"</span>
+}
+        </div>
+      </div>
+    </div>
+
+    <div class="endpoint" onclick="toggleEndpoint(this)">
+      <div class="endpoint-header">
+        <span class="method get">GET</span>
+        <span class="endpoint-path">/v1/audit/{audit_id}</span>
+        <span style="color:var(--muted);font-size:13px;flex:1;margin-left:8px">— Retrieve decision audit trail</span>
+        <span class="endpoint-toggle">▼</span>
+      </div>
+      <div class="endpoint-body">
+        <p style="font-size:13px">Returns the complete audit log for any decision, including all scores, which rules matched, which stage made the decision, and any AI enrichment that occurred.</p>
+        <div class="code-block">
+{
+  <span class="n">"audit_id"</span>:    <span class="s">"aud_a1b2c3d4"</span>,
+  <span class="n">"decision"</span>:    <span class="s">"NOW"</span>,
+  <span class="n">"score"</span>:       <span class="v">88</span>,
+  <span class="n">"stages"</span>: {
+    <span class="n">"dedup"</span>:     <span class="s">"PASS"</span>,
+    <span class="n">"rules"</span>:     <span class="s">"CRITICAL_OVERRIDE triggered"</span>,
+    <span class="n">"ai_score"</span>:  <span class="v">+12</span>,
+    <span class="n">"fatigue"</span>:   <span class="s">"2/5 cap, penalty=0"</span>
+  },
+  <span class="n">"rules_matched"</span>: [<span class="s">"critical-always-now"</span>],
+  <span class="n">"created_at"</span>:  <span class="s">"2025-02-25T14:00:02Z"</span>
+}
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- DATA MODEL -->
+<section id="data">
+  <div class="section-label">08 — Data Model</div>
+  <h2>Minimal Data Schema</h2>
+
+  <div class="grid-2" style="margin-top:20px">
+    <div class="card">
+      <h3 style="font-family:'DM Mono',monospace;font-size:13px;color:var(--accent)">events</h3>
+      <div class="code-block" style="margin-top:10px;font-size:11px">
+<span class="k">CREATE TABLE</span> events (
+  id          UUID <span class="k">PRIMARY KEY</span>,
+  user_id     VARCHAR(<span class="v">64</span>) <span class="k">NOT NULL</span>,
+  event_type  VARCHAR(<span class="v">64</span>),
+  message     TEXT,
+  source      VARCHAR(<span class="v">128</span>),
+  priority    VARCHAR(<span class="v">16</span>),
+  channel     VARCHAR(<span class="v">16</span>),
+  dedupe_key  VARCHAR(<span class="v">256</span>),
+  expires_at  TIMESTAMPTZ,
+  metadata    JSONB,
+  received_at TIMESTAMPTZ <span class="k">DEFAULT NOW</span>()
+);
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="font-family:'DM Mono',monospace;font-size:13px;color:var(--accent)">decisions (audit log)</h3>
+      <div class="code-block" style="margin-top:10px;font-size:11px">
+<span class="k">CREATE TABLE</span> decisions (
+  audit_id    UUID <span class="k">PRIMARY KEY</span>,
+  event_id    UUID <span class="k">REFERENCES</span> events(id),
+  decision    VARCHAR(<span class="v">8</span>),   <span class="c">-- NOW|LATER|NEVER</span>
+  score       SMALLINT,
+  reason      TEXT,
+  stage       VARCHAR(<span class="v">32</span>),  <span class="c">-- which stage decided</span>
+  rules_hit   JSONB,
+  schedule_at TIMESTAMPTZ,
+  created_at  TIMESTAMPTZ <span class="k">DEFAULT NOW</span>()
+);
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="font-family:'DM Mono',monospace;font-size:13px;color:var(--accent)">rules (configurable)</h3>
+      <div class="code-block" style="margin-top:10px;font-size:11px">
+<span class="k">CREATE TABLE</span> rules (
+  rule_id    VARCHAR(<span class="v">64</span>) <span class="k">PRIMARY KEY</span>,
+  condition  JSONB,
+  action     VARCHAR(<span class="v">16</span>),
+  max_per    JSONB,
+  priority   SMALLINT,
+  enabled    BOOLEAN <span class="k">DEFAULT</span> <span class="k">true</span>,
+  updated_at TIMESTAMPTZ,
+  updated_by VARCHAR(<span class="v">64</span>)
+);
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="font-family:'DM Mono',monospace;font-size:13px;color:var(--accent)">Redis Keys</h3>
+      <div class="code-block" style="margin-top:10px;font-size:11px">
+<span class="c">-- Exact dedup (TTL=600s)</span>
+<span class="s">dedup:{fingerprint}</span>              → <span class="v">1</span>
+
+<span class="c">-- Near-dedup SimHash set</span>
+<span class="s">sim:{user_id}</span> [sorted by ts]
+
+<span class="c">-- Frequency counters (sliding window)</span>
+<span class="s">freq:{user_id}:total</span>             → count
+<span class="s">freq:{user_id}:{source}</span>          → count
+
+<span class="c">-- Digest bucket</span>
+<span class="s">digest:{user_id}</span> [list of event_ids]
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FALLBACK -->
+<section id="fallback">
+  <div class="section-label">09 — Reliability</div>
+  <h2>Fallback & Fail-Safe Strategy</h2>
+
+  <div class="highlight-box" style="margin-bottom:16px">
+    <p><strong style="color:var(--text)">Core principle:</strong> No important notification should be silently lost due to a service failure. Every failure mode has a defined safe default.</p>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>🧠 AI Service Unavailable</h3>
+      <p>AI scoring is async and additive only (+/- adjustment). If the AI scoring service times out (&gt;200ms) or returns an error:</p>
+      <div class="rule-item"><span class="rule-num">F1</span><span>Skip AI score silently. Use rule-based score only.</span></div>
+      <div class="rule-item"><span class="rule-num">F2</span><span>Log a <code style="color:var(--later); font-family:'DM Mono',monospace">ai_skipped=true</code> flag in audit.</span></div>
+      <div class="rule-item"><span class="rule-num">F3</span><span>Decision proceeds normally. AI is never a blocker.</span></div>
+    </div>
+    <div class="card">
+      <h3>🗄️ Redis Unavailable</h3>
+      <p>If Redis is down, dedup and fatigue checks cannot run:</p>
+      <div class="rule-item"><span class="rule-num">F4</span><span>CRITICAL events → send NOW regardless (fail-open for important).</span></div>
+      <div class="rule-item"><span class="rule-num">F5</span><span>Non-critical events → defer to Kafka dead-letter queue for retry.</span></div>
+      <div class="rule-item"><span class="rule-num">F6</span><span>Alert ops team. Circuit breaker activates after 3 failures/5s.</span></div>
+    </div>
+    <div class="card">
+      <h3>🗃️ DB Unavailable</h3>
+      <p>Rule loading from DB fails. The engine uses a last-known-good rule snapshot cached in memory (refreshed every 30s). Rules older than 5 min trigger an alert.</p>
+    </div>
+    <div class="card">
+      <h3>🌊 Traffic Spike</h3>
+      <p>Under extreme load, the engine sheds non-critical load via Kafka back-pressure. A <code style="color:var(--accent); font-family:'DM Mono',monospace">priority_hint=CRITICAL</code> fast lane bypasses all queuing with a dedicated thread pool.</p>
+    </div>
+  </div>
+</section>
+
+<!-- METRICS -->
+<section id="metrics">
+  <div class="section-label">10 — Observability</div>
+  <h2>Metrics & Monitoring Plan</h2>
+
+  <div class="grid-3" style="margin-top:20px">
+    <div class="card">
+      <h3>📈 Throughput</h3>
+      <p>Events/second ingested, classified, and delivered. Alert if &lt; baseline by 20%.</p>
+    </div>
+    <div class="card">
+      <h3>⚡ Latency</h3>
+      <p>P50, P95, P99 decision latency. SLO: P95 &lt; 50ms. Alert on P95 &gt; 100ms.</p>
+    </div>
+    <div class="card">
+      <h3>🎯 Decision Distribution</h3>
+      <p>% of events classified NOW / LATER / NEVER per hour. Spike in NEVER may indicate bug.</p>
+    </div>
+    <div class="card">
+      <h3>🔄 Dedup Rate</h3>
+      <p>% of events suppressed via exact or near-dedup. Sudden drops indicate key TTL misconfiguration.</p>
+    </div>
+    <div class="card">
+      <h3>🤖 AI Availability</h3>
+      <p>% of decisions where AI score was applied vs skipped. Target: &gt;95% AI enrichment.</p>
+    </div>
+    <div class="card">
+      <h3>😮 Fatigue Score</h3>
+      <p>Per-user average fatigue index. Rising trend signals need for tighter caps.</p>
+    </div>
+    <div class="card">
+      <h3>🚨 Critical Loss Rate</h3>
+      <p>CRITICAL events that were delayed or suppressed. <strong>Target: 0.</strong> Any non-zero value pages on-call.</p>
+    </div>
+    <div class="card">
+      <h3>📬 Digest Engagement</h3>
+      <p>Open/click rate on batched digests. Used to tune digest frequency and timing.</p>
+    </div>
+    <div class="card">
+      <h3>❌ Error Rate</h3>
+      <p>Pipeline errors, Redis failures, DB timeouts. Alert at &gt;0.1% error rate.</p>
+    </div>
+  </div>
+
+  <div class="tool-note">
+    <strong>Tools Used:</strong> Solution designed with Claude (Anthropic) for architecture ideation, structure refinement, and interactive component generation. All decision logic, scoring model, data schemas, API contracts, and tradeoff decisions were manually crafted and validated by the candidate.
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <span>Notification Prioritization Engine · Cyepro Round 1 Submission</span>
+  <span>Built with AI-augmented reasoning · Feb 2025</span>
+</footer>
+
+<script>
+// ── NAV ACTIVE STATE ──────────────────────────────────────────────
+const sections = document.querySelectorAll('section[id]');
+const navLinks = document.querySelectorAll('nav a');
+window.addEventListener('scroll', () => {
+  let current = '';
+  sections.forEach(s => { if (window.scrollY >= s.offsetTop - 120) current = s.id; });
+  navLinks.forEach(a => { a.classList.toggle('active', a.getAttribute('href') === '#' + current); });
+});
+
+// ── ENDPOINT TOGGLE ───────────────────────────────────────────────
+function toggleEndpoint(el) { el.classList.toggle('open'); }
+
+// ── SCENARIO PRESETS ──────────────────────────────────────────────
+const presets = {
+  critical: { type:'security_alert', priority:'CRITICAL', channel:'sms', history:'3', source:'auth-service', dedupe:'', expires:'future', dnd:'no', msg:'New login from unknown device' },
+  dm:       { type:'direct_message', priority:'HIGH',     channel:'push', history:'0', source:'chat-service', dedupe:'', expires:'future', dnd:'no', msg:'Hey, are you free for a quick call?' },
+  promo_flood:{ type:'promotion',   priority:'LOW',      channel:'email', history:'15', source:'marketing-svc', dedupe:'', expires:'future', dnd:'no', msg:'Exclusive weekend flash sale!' },
+  expired:  { type:'reminder',      priority:'MEDIUM',   channel:'push', history:'1', source:'reminder-svc', dedupe:'', expires:'past', dnd:'no', msg:'Team standup starts in 5 minutes' },
+  duplicate:{ type:'promotion',     priority:'LOW',      channel:'push', history:'2', source:'promo-svc', dedupe:'promo_dup_key_001', expires:'future', dnd:'no', msg:'Check out our new features!' },
+  conflict: { type:'system_update', priority:'HIGH',     channel:'push', history:'15', source:'noisy-svc', dedupe:'', expires:'future', dnd:'yes', msg:'System performance degraded by 12%' },
+};
+// Simulate seen dedupe keys
+const seenDedupeKeys = new Set(['promo_dup_key_001']);
+
+function applyPreset(key) {
+  const p = presets[key];
+  document.getElementById('f-type').value = p.type;
+  document.getElementById('f-priority').value = p.priority;
+  document.getElementById('f-channel').value = p.channel;
+  document.getElementById('f-history').value = p.history;
+  document.getElementById('f-source').value = p.source;
+  document.getElementById('f-dedupe').value = p.dedupe;
+  document.getElementById('f-expires').value = p.expires;
+  document.getElementById('f-dnd').value = p.dnd;
+  document.getElementById('f-message').value = p.msg;
+  document.getElementById('f-user').value = 'user_' + Math.floor(1000+Math.random()*9000);
+}
+
+// ── SCORE WEIGHTS ─────────────────────────────────────────────────
+const scoreWeights = {
+  priority: { CRITICAL: 40, HIGH: 25, MEDIUM: 15, LOW: 5 },
+  eventType: { security_alert: 30, direct_message: 25, reminder: 20, system_update: 10, promotion: 5, low_value_promo: 2 },
+  channel: { sms: 10, push: 8, email: 5, 'in-app': 3 },
+  history: { '0': 0, '3': 5, '8': 15, '15': 28 }
+};
+
+// ── MAIN DECISION FUNCTION ────────────────────────────────────────
+function runDecision() {
+  const user     = document.getElementById('f-user').value || 'user_8821';
+  const type     = document.getElementById('f-type').value;
+  const priority = document.getElementById('f-priority').value;
+  const channel  = document.getElementById('f-channel').value;
+  const history  = document.getElementById('f-history').value;
+  const message  = document.getElementById('f-message').value;
+  const source   = document.getElementById('f-source').value || 'unknown-svc';
+  const dedupeKey= document.getElementById('f-dedupe').value.trim();
+  const expires  = document.getElementById('f-expires').value;
+  const dnd      = document.getElementById('f-dnd').value;
+
+  const logs = [];
+  const ts = () => new Date().toISOString().slice(11,19);
+  logs.push({ts:ts(), cls:'info', msg:'Pipeline started. Evaluating incoming event...'});
+  logs.push({ts:ts(), cls:'info', msg:`Source: ${source} | Channel: ${channel} | User: ${user}`});
+
+  // Stage 1A: Expiry check
+  if (expires === 'past') {
+    logs.push({ts:ts(), cls:'err', msg:'EXPIRY GUARD: expires_at is in the past → NEVER (stale event)'});
+    return showResult('NEVER', 0, logs, priority, type, channel, history, null);
+  }
+  if (expires === 'soon') logs.push({ts:ts(), cls:'warn', msg:'EXPIRY GUARD: expires in <5 min — time-sensitive flag set'});
+  else logs.push({ts:ts(), cls:'ok', msg:'EXPIRY GUARD: Valid. Event not expired.'});
+
+  // Stage 1B: Dedup check
+  const dedupeMatch = dedupeKey && seenDedupeKeys.has(dedupeKey);
+  if (dedupeMatch) {
+    logs.push({ts:ts(), cls:'err', msg:`DEDUP GUARD: Exact key match "${dedupeKey}" found in Redis → NEVER`});
+    return showResult('NEVER', 0, logs, priority, type, channel, history, null);
+  }
+  // Simulate near-dup for repeated common messages
+  const nearDupMsgs = ['check out our new features', 'flash sale', 'weekend deal'];
+  const nearDup = nearDupMsgs.some(m => message.toLowerCase().includes(m)) && history !== '0';
+  if (nearDup) {
+    logs.push({ts:ts(), cls:'warn', msg:'DEDUP GUARD: Near-duplicate detected via SimHash (hamming dist < 5) → NEVER'});
+    return showResult('NEVER', 0, logs, priority, type, channel, history, null);
+  }
+  logs.push({ts:ts(), cls:'ok', msg:'DEDUP GUARD: No duplicate found. Fingerprint stored in Redis (TTL=600s).'});
+
+  // Stage 1C: CRITICAL override (before DND check — CRITICAL always wins)
+  if (priority === 'CRITICAL') {
+    logs.push({ts:ts(), cls:'ok', msg:'RULES ENGINE: CRITICAL priority override — bypasses DND and fatigue → NOW'});
+    return showResult('NOW', 97, logs, priority, type, channel, history, null);
+  }
+
+  // Stage 1D: DND check (non-critical)
+  if (dnd === 'yes') {
+    logs.push({ts:ts(), cls:'warn', msg:'DND GUARD: User is in quiet hours (11 PM–8 AM). Non-critical event → LATER'});
+    const nextWindow = getNextWindow();
+    logs.push({ts:ts(), cls:'info', msg:`SCHEDULER: Event queued for ${nextWindow}`});
+    return showResult('LATER', 35, logs, priority, type, channel, history, nextWindow, 'DND window — next available slot');
+  }
+  logs.push({ts:ts(), cls:'ok', msg:'DND GUARD: Not in quiet hours. Proceeding...'});
+
+  // Stage 2: Composite scoring
+  const ps = scoreWeights.priority[priority] || 10;
+  const es = scoreWeights.eventType[type] || 5;
+  const cs = scoreWeights.channel[channel] || 5;
+  const fp = scoreWeights.history[history] || 0;
+  const ai = Math.floor(Math.random() * 14) - 3;
+  let score = ps + es + cs - fp + ai;
+  score = Math.max(0, Math.min(100, score));
+
+  logs.push({ts:ts(), cls:'info', msg:`PRIORITY SCORER: +${ps} pts (${priority})`});
+  logs.push({ts:ts(), cls:'info', msg:`EVENT TYPE SCORER: +${es} pts (${type})`});
+  logs.push({ts:ts(), cls:'info', msg:`CHANNEL SCORER: +${cs} pts (${channel})`});
+  logs.push({ts:ts(), cls: fp>15?'err':'warn', msg:`FATIGUE PENALTY: -${fp} pts (${history} notifs/hr in last window)`});
+  logs.push({ts:ts(), cls:'ok', msg:`AI CONTEXT SCORER: ${ai>=0?'+':''}${ai} pts (user engagement model)`});
+  logs.push({ts:ts(), cls:'info', msg:`COMPOSITE SCORE: ${score}/100`});
+
+  // Stage 3: Conflict resolution
+  if (priority === 'HIGH' && fp >= 15) {
+    logs.push({ts:ts(), cls:'warn', msg:'CONFLICT RESOLVER: HIGH priority but noisy source → capped at LATER (max 15 min defer)'});
+    const deferTime = getShortDefer();
+    return showResult('LATER', score, logs, priority, type, channel, history, deferTime, 'Conflict: urgent + high fatigue');
+  }
+
+  // Stage 4: Decision boundary
+  let decision, scheduleAt = null, scheduleReason = null;
+  if (score >= 60) {
+    decision = 'NOW';
+    logs.push({ts:ts(), cls:'ok', msg:`DECISION: score ${score} ≥ 60 → NOW. Dispatching immediately.`});
+  } else if (score >= 30) {
+    decision = 'LATER';
+    scheduleAt = getOptimalWindow(type);
+    scheduleReason = 'Optimal engagement window';
+    logs.push({ts:ts(), cls:'warn', msg:`DECISION: score ${score} in [30,60) → LATER. Scheduled for ${scheduleAt}`});
+  } else {
+    decision = 'NEVER';
+    logs.push({ts:ts(), cls:'err', msg:`DECISION: score ${score} < 30 → NEVER. Suppressed. Audit log written.`});
+  }
+
+  showResult(decision, score, logs, priority, type, channel, history, scheduleAt, scheduleReason);
+}
+
+function getNextWindow() {
+  const d = new Date(); d.setHours(8,0,0,0); d.setDate(d.getDate()+1);
+  return 'Tomorrow ' + d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+}
+function getShortDefer() {
+  const d = new Date(Date.now() + 15*60*1000);
+  return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+}
+function getOptimalWindow(type) {
+  const d = new Date();
+  if (['promotion','low_value_promo','system_update'].includes(type)) {
+    d.setHours(d.getHours() + 2 + Math.floor(Math.random()*3));
+  } else {
+    d.setMinutes(d.getMinutes() + 15 + Math.floor(Math.random()*30));
+  }
+  return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+}
+
+function showResult(decision, score, logs, priority, type, channel, history, scheduleAt, scheduleReason) {
+  const r = document.getElementById('result');
+  const colors = { NOW:'#00e5c3', LATER:'#ffd166', NEVER:'#ff6b6b' };
+  const icons  = { NOW:'✅', LATER:'⏰', NEVER:'🚫' };
+  const color  = colors[decision];
+
+  document.getElementById('res-badge').innerHTML = `<span style="color:${color}">${icons[decision]} ${decision}</span>`;
+  r.style.borderColor = color + '33';
+  r.style.background  = color + '06';
+
+  document.getElementById('res-score').innerHTML =
+    `Composite Score: <strong style="color:${color}">${score}/100</strong>`;
+
+  // schedule panel
+  const schedEl = document.getElementById('res-schedule');
+  if (scheduleAt && decision === 'LATER') {
+    schedEl.style.display = 'block';
+    document.getElementById('res-schedule-time').textContent = scheduleAt;
+    document.getElementById('res-schedule-reason').textContent = scheduleReason || '';
+  } else { schedEl.style.display = 'none'; }
+
+  const bars = [
+    {label:'Priority Weight',  val: scoreWeights.priority[priority]||10, max:40, color},
+    {label:'Event Type Score', val: scoreWeights.eventType[type]||5,     max:30, color:'#82aaff'},
+    {label:'Fatigue Penalty',  val: scoreWeights.history[history]||0,    max:30, color:'#ff6b6b'},
+    {label:'Final Score',      val: score,                               max:100, color},
+  ];
+  document.getElementById('res-bars').innerHTML = bars.map(b => `
+    <div style="margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;font-family:'DM Mono',monospace;font-size:10px;color:#5a6070;margin-bottom:3px">
+        <span>${b.label}</span><span style="color:${b.color}">${b.val}</span>
+      </div>
+      <div class="score-bar"><div class="score-fill" style="width:${Math.round(b.val/b.max*100)}%;background:${b.color}"></div></div>
+    </div>`).join('');
+
+  document.getElementById('res-log').innerHTML = logs.map(l =>
+    `<div class="log-line"><span class="ts">[${l.ts}]</span><span class="msg ${l.cls}">${l.msg}</span></div>`
+  ).join('');
+
+  r.classList.add('show');
+  r.style.display = 'block';
+}
+
+function randomize() {
+  const keys = Object.keys(presets);
+  applyPreset(keys[Math.floor(Math.random()*keys.length)]);
+}
+
+// ── LIVE STREAM ───────────────────────────────────────────────────
+const streamEvents = [
+  {user:'usr_2211',type:'security_alert',msg:'New login from Delhi',status:'now'},
+  {user:'usr_4455',type:'promotion',msg:'50% off today only!',status:'later'},
+  {user:'usr_7788',type:'direct_message',msg:'Hey are you free?',status:'now'},
+  {user:'usr_3312',type:'promotion',msg:'Flash sale ends soon',status:'never'},
+  {user:'usr_9901',type:'reminder',msg:'Team call at 3pm',status:'now'},
+  {user:'usr_5566',type:'system_update',msg:'App updated to v2.4',status:'later'},
+  {user:'usr_1122',type:'promotion',msg:'Weekend deal unlocked',status:'never'},
+  {user:'usr_8833',type:'security_alert',msg:'Password changed',status:'now'},
+  {user:'usr_6677',type:'low_value_promo',msg:'Check out our blog',status:'never'},
+  {user:'usr_4499',type:'reminder',msg:'Daily standup in 5m',status:'now'},
+  {user:'usr_3344',type:'direct_message',msg:'PR review requested',status:'now'},
+  {user:'usr_7712',type:'promotion',msg:'You have 500 points!',status:'never'},
+];
+let streamIdx = 0, streamRunning = true, streamTimer;
+function addStreamItem() {
+  const stream = document.getElementById('stream');
+  const ev = streamEvents[streamIdx % streamEvents.length]; streamIdx++;
+  const div = document.createElement('div'); div.className='stream-item';
+  div.innerHTML=`<span class="stream-status s-${ev.status}">${ev.status.toUpperCase()}</span>
+    <span class="stream-user">${ev.user}</span>
+    <span class="stream-type">${ev.type}</span>
+    <span class="stream-msg">${ev.msg}</span>`;
+  stream.prepend(div);
+  if (stream.children.length > 30) stream.lastChild.remove();
+}
+function startStream() { streamTimer = setInterval(addStreamItem, 1400); }
+function toggleStream() {
+  streamRunning = !streamRunning;
+  document.getElementById('stream-btn').textContent = streamRunning ? '⏸ Pause' : '▶ Resume';
+  if (streamRunning) startStream(); else clearInterval(streamTimer);
+}
+startStream();
+for(let i=0;i<6;i++) addStreamItem();
+
+// ── DIGEST TIMER ──────────────────────────────────────────────────
+setInterval(() => {
+  const next = new Date(Date.now() + 30*60*1000);
+  document.getElementById('flush-timer').textContent =
+    next.getHours().toString().padStart(2,'0')+':'+next.getMinutes().toString().padStart(2,'0');
+  const cnt = Math.floor(Math.random()*8)+1;
+  document.getElementById('digest-display').textContent = cnt + ' items buffered';
+  const idx = cnt<=2?'LOW':cnt<=6?'MEDIUM':'HIGH';
+  const el = document.getElementById('fatigue-idx');
+  el.textContent = idx;
+  el.style.color = idx==='LOW'?'var(--now)':idx==='MEDIUM'?'var(--later)':'var(--never)';
+}, 5000);
+
+// ── RULES ADMIN ───────────────────────────────────────────────────
+let rulesData = [
+  { id:'promo-cap-email',  type:'promotion',      action:'CAP',      cap:'1/4h', enabled:true  },
+  { id:'defer-low-value',  type:'low_value_promo',action:'DEFER',    cap:'1/24h',enabled:true  },
+  { id:'critical-always',  type:'*',              action:'SEND_NOW', cap:'—',    enabled:true  },
+  { id:'sys-update-batch', type:'system_update',  action:'DEFER',    cap:'2/1h', enabled:false },
+];
+
+function renderRules() {
+  const cls = { CAP:'ra-cap', DEFER:'ra-defer', SUPPRESS:'ra-suppress', SEND_NOW:'ra-send' };
+  const labels = { CAP:'CAP', DEFER:'DEFER', SUPPRESS:'SUPPRESS', SEND_NOW:'SEND NOW' };
+  document.getElementById('rules-list').innerHTML = rulesData.map((r,i) => `
+    <div class="rule-row">
+      <span class="rule-id">${r.id}</span>
+      <span class="rule-type">${r.type}</span>
+      <span class="rule-action ${cls[r.action]}">${labels[r.action]}</span>
+      <span style="color:var(--muted);font-size:11px">${r.cap}</span>
+      <div class="toggle-pill ${r.enabled?'on':''}" onclick="toggleRule(${i})" title="${r.enabled?'Enabled — click to disable':'Disabled — click to enable'}"></div>
+      <span onclick="deleteRule(${i})" style="color:var(--never);cursor:pointer;font-size:12px;margin-left:4px" title="Delete">✕</span>
+    </div>`).join('');
+}
+
+function toggleRule(i) {
+  rulesData[i].enabled = !rulesData[i].enabled;
+  renderRules();
+}
+function deleteRule(i) {
+  rulesData.splice(i,1);
+  renderRules();
+}
+function addRule() {
+  rulesData.unshift({ id:'new-rule-'+Date.now(), type:'*', action:'DEFER', cap:'1/1h', enabled:true });
+  renderRules();
+}
+function saveRule() {
+  const id  = document.getElementById('nr-id').value.trim() || ('rule-'+Date.now());
+  const type= document.getElementById('nr-type').value;
+  const act = document.getElementById('nr-action').value.replace(' (frequency limit)','');
+  const cap = document.getElementById('nr-cap').value;
+  rulesData.unshift({ id, type, action: act==='CAP'?'CAP':act, cap, enabled:true });
+  renderRules();
+  document.getElementById('nr-id').value = '';
+}
+renderRules();
+</script>
+</body>
+</html>
